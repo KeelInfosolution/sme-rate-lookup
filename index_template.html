@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SME Compensation Matrix — Rate Lookup</title>
+<style>
+  :root{
+    --ink:#0F1D2E;
+    --navy:#13253F;
+    --navy-deep:#0A1524;
+    --paper:#F6F4EE;
+    --card:#FFFFFF;
+    --line:#DDD8C9;
+    --accent:#B8722E;
+    --accent-deep:#8F531F;
+    --good:#2E6B4F;
+    --muted:#6B7280;
+    --mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #1c3252 0%, transparent 60%),
+      var(--paper);
+    font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color:var(--ink);
+    min-height:100vh;
+    padding:0 0 80px 0;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap');
+
+  header{
+    background: linear-gradient(180deg, var(--navy-deep) 0%, var(--navy) 100%);
+    color:#EFE9DA;
+    padding:40px 24px 56px;
+    position:relative;
+    overflow:hidden;
+  }
+  header::after{
+    content:"";
+    position:absolute; inset:0;
+    background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 64px);
+    pointer-events:none;
+  }
+  .header-inner{max-width:920px; margin:0 auto; position:relative;}
+  .eyebrow{
+    font-family:var(--mono);
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    font-size:12px;
+    color:var(--accent);
+    display:flex; align-items:center; gap:10px;
+    margin-bottom:14px;
+  }
+  .eyebrow::before{content:""; width:22px; height:1px; background:var(--accent);}
+  h1{
+    font-family:'Fraunces', Georgia, serif;
+    font-weight:600;
+    font-size:clamp(28px,4vw,42px);
+    margin:0 0 12px 0;
+    letter-spacing:-0.01em;
+  }
+  header p.sub{
+    max-width:560px;
+    color:#B9C2CE;
+    font-size:15px;
+    line-height:1.55;
+    margin:0;
+  }
+  .terror-banner{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    margin-top:22px;
+    padding:8px 14px;
+    border:1px solid rgba(184,114,46,0.55);
+    background:rgba(184,114,46,0.12);
+    border-radius:100px;
+    font-family:var(--mono);
+    font-size:12.5px;
+    letter-spacing:.03em;
+    color:#E8C79B;
+  }
+  .terror-banner b{color:var(--accent); font-weight:600;}
+
+  main{max-width:920px; margin:-30px auto 0; padding:0 24px; position:relative;}
+
+  .panel{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:14px;
+    box-shadow:0 20px 50px -20px rgba(10,21,36,0.35);
+    padding:30px;
+  }
+
+  .steps{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:18px;
+  }
+  .step{
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px 18px;
+    background:#FCFBF7;
+    transition:opacity .2s ease, border-color .2s ease;
+    position:relative;
+  }
+  .step[data-disabled="true"]{opacity:.45; pointer-events:none;}
+  .step-label{
+    display:flex; align-items:center; gap:10px;
+    font-family:var(--mono);
+    font-size:11.5px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:10px;
+  }
+  .step-num{
+    width:20px; height:20px; border-radius:50%;
+    background:var(--navy); color:#EFE9DA;
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:600; font-family:var(--mono);
+  }
+  .step[data-filled="true"] .step-num{background:var(--good);}
+
+  .combo{position:relative;}
+  .combo input{
+    width:100%;
+    font-family:'Inter', sans-serif;
+    font-size:16px;
+    padding:12px 40px 12px 14px;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    background:#fff;
+    color:var(--ink);
+    outline:none;
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  .combo input:focus{
+    border-color:var(--navy);
+    box-shadow:0 0 0 3px rgba(19,37,63,0.10);
+  }
+  .combo .clear-x{
+    position:absolute; right:10px; top:50%; transform:translateY(-50%);
+    width:22px;height:22px;border-radius:50%;
+    display:none; align-items:center; justify-content:center;
+    color:var(--muted); cursor:pointer; font-size:14px;
+    background:transparent;
+  }
+  .combo .clear-x:hover{background:var(--line);}
+  .combo.has-value .clear-x{display:flex;}
+
+  .combo-list{
+    position:absolute; z-index:40;
+    top:calc(100% + 6px); left:0; right:0;
+    max-height:280px; overflow-y:auto;
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:10px;
+    box-shadow:0 16px 40px -12px rgba(10,21,36,0.30);
+    display:none;
+  }
+  .combo-list.open{display:block;}
+  .combo-item{
+    padding:10px 14px;
+    font-size:14.5px;
+    cursor:pointer;
+    border-bottom:1px solid #F0EEE6;
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+  }
+  .combo-item:last-child{border-bottom:none;}
+  .combo-item:hover, .combo-item.active{background:#F3EFE3;}
+  .combo-item mark{background:rgba(184,114,46,0.28); color:inherit; border-radius:2px;}
+  .combo-item .count-pill{
+    font-family:var(--mono); font-size:11px; color:var(--muted);
+    background:#EFECE2; padding:2px 7px; border-radius:100px; flex-shrink:0;
+  }
+  .combo-empty{padding:16px 14px; color:var(--muted); font-size:13.5px; font-style:italic;}
+
+  .hint{font-size:12.5px; color:var(--muted); margin-top:8px;}
+
+  .result{
+    margin-top:26px;
+    border-radius:12px;
+    overflow:hidden;
+    border:1px solid var(--line);
+  }
+  .result-empty{
+    padding:36px 20px;
+    text-align:center;
+    color:var(--muted);
+    font-size:14.5px;
+    background:#FCFBF7;
+    border:1px dashed var(--line);
+    border-radius:12px;
+    margin-top:26px;
+  }
+  .result-head{
+    background:var(--navy);
+    color:#EFE9DA;
+    padding:16px 22px;
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .result-body{padding:22px; background:#fff;}
+  .rate-row{
+    display:grid;
+    grid-template-columns:1fr auto;
+    gap:16px;
+    align-items:center;
+    padding:16px 0;
+    border-bottom:1px solid #F0EEE6;
+  }
+  .rate-row:last-child{border-bottom:none;}
+  .rate-meta{font-size:13px; color:var(--muted);}
+  .rate-meta .code{font-family:var(--mono); color:var(--ink); font-weight:600;}
+  .rate-figure{text-align:right; min-width:110px;}
+  .rate-figure .label{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-family:var(--mono);}
+  .rate-figure .value{font-family:var(--mono); font-size:26px; font-weight:600; line-height:1.1;}
+  .rate-figure.payable .value{color:var(--accent-deep);}
+  .excl-tag{
+    display:inline-block; margin-top:4px;
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.04em;
+    color:var(--muted); background:#F0EEE6; padding:2px 6px; border-radius:4px;
+  }
+
+  footer{
+    max-width:920px; margin:34px auto 0; padding:0 24px;
+    color:var(--muted); font-size:12.5px; line-height:1.6;
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;
+  }
+  footer .mono{font-family:var(--mono);}
+  @media (max-width:640px){
+    .rate-row{grid-template-columns:1fr; text-align:left;}
+    .rate-figure{text-align:left;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="eyebrow">SME &amp; Corporate Compensation Matrix</div>
+    <h1>Rate Lookup</h1>
+    <p class="sub">Select an insurer, product, and occupancy to see the exact Payable Net commission on file. Search any field by typing — matches update as you type.</p>
+    <div class="terror-banner"><b>Note —</b>&nbsp;All rates shown across every category are <b>Excluding Terrorism</b>.</div>
+  </div>
+</header>
+
+<main>
+  <div class="panel">
+    <div class="steps">
+
+      <div class="step" data-key="company" data-filled="false">
+        <div class="step-label"><span class="step-num">1</span> Company Name</div>
+        <div class="combo" id="combo-company">
+          <input type="text" placeholder="Start typing an insurer name…" autocomplete="off" />
+          <span class="clear-x">✕</span>
+          <div class="combo-list"></div>
+        </div>
+      </div>
+
+      <div class="step" data-key="product" data-disabled="true" data-filled="false">
+        <div class="step-label"><span class="step-num">2</span> Product</div>
+        <div class="combo" id="combo-product">
+          <input type="text" placeholder="Select a company first…" autocomplete="off" disabled />
+          <span class="clear-x">✕</span>
+          <div class="combo-list"></div>
+        </div>
+      </div>
+
+      <div class="step" data-key="occupancy" data-disabled="true" data-filled="false">
+        <div class="step-label"><span class="step-num">3</span> Occupancy Name</div>
+        <div class="combo" id="combo-occupancy">
+          <input type="text" placeholder="Select a product first…" autocomplete="off" disabled />
+          <span class="clear-x">✕</span>
+          <div class="combo-list"></div>
+        </div>
+        <div class="hint">Products with no occupancy-based bifurcation show a single standard rate.</div>
+      </div>
+
+    </div>
+
+    <div id="result-zone">
+      <div class="result-empty">Make all three selections above to see the matching rate.</div>
+    </div>
+  </div>
+
+  <footer>
+    <span>Source: SME Compensation Matrix (master upload grid)</span>
+    <span class="mono" id="stat-line"></span>
+  </footer>
+</main>
+
+<script id="lookup-data" type="application/json">__DATA_JSON__</script>
+<script>
+(function(){
+  const RAW = JSON.parse(document.getElementById('lookup-data').textContent);
+  const DATA = RAW.data;
+  const COMPANIES = RAW.companies;
+
+  const state = { company: null, product: null, occupancy: null };
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function highlight(text, query){
+    if(!query) return escapeHtml(text);
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if(idx === -1) return escapeHtml(text);
+    return escapeHtml(text.slice(0,idx)) + '<mark>' + escapeHtml(text.slice(idx, idx+query.length)) + '</mark>' + escapeHtml(text.slice(idx+query.length));
+  }
+
+  function setupCombo(key, getOptions, onSelect, placeholderEnabled){
+    const wrap = document.getElementById('combo-' + key);
+    const input = wrap.querySelector('input');
+    const listEl = wrap.querySelector('.combo-list');
+    const clearX = wrap.querySelector('.clear-x');
+    let activeIndex = -1;
+    let currentOptions = [];
+
+    function render(query){
+      const opts = getOptions();
+      const q = (query||'').trim().toLowerCase();
+      let filtered = opts;
+      if(q.length > 0){
+        const starts = opts.filter(o => o.label.toLowerCase().startsWith(q));
+        const contains = opts.filter(o => !o.label.toLowerCase().startsWith(q) && o.label.toLowerCase().includes(q));
+        filtered = starts.concat(contains);
+      }
+      currentOptions = filtered.slice(0, 60);
+      activeIndex = -1;
+      if(currentOptions.length === 0){
+        listEl.innerHTML = '<div class="combo-empty">No matches. Try a different search.</div>';
+      } else {
+        listEl.innerHTML = currentOptions.map((o,i) =>
+          `<div class="combo-item" data-idx="${i}">
+             <span>${highlight(o.label, q)}</span>
+             ${o.count ? `<span class="count-pill">${o.count}</span>` : ''}
+           </div>`
+        ).join('');
+      }
+      listEl.classList.add('open');
+    }
+
+    function close(){ listEl.classList.remove('open'); }
+
+    input.addEventListener('focus', () => { if(!input.disabled) render(input.value); });
+    input.addEventListener('input', () => {
+      wrap.classList.toggle('has-value', input.value.length>0);
+      render(input.value);
+    });
+    input.addEventListener('keydown', (e) => {
+      if(!listEl.classList.contains('open')) return;
+      if(e.key === 'ArrowDown'){ e.preventDefault(); activeIndex = Math.min(activeIndex+1, currentOptions.length-1); updateActive(); }
+      else if(e.key === 'ArrowUp'){ e.preventDefault(); activeIndex = Math.max(activeIndex-1, 0); updateActive(); }
+      else if(e.key === 'Enter'){ e.preventDefault(); if(activeIndex>=0) pick(currentOptions[activeIndex]); }
+      else if(e.key === 'Escape'){ close(); }
+    });
+    function updateActive(){
+      [...listEl.children].forEach((el,i) => el.classList.toggle('active', i===activeIndex));
+      const el = listEl.children[activeIndex];
+      if(el) el.scrollIntoView({block:'nearest'});
+    }
+    listEl.addEventListener('mousedown', (e) => {
+      const item = e.target.closest('.combo-item');
+      if(!item) return;
+      const idx = parseInt(item.dataset.idx,10);
+      pick(currentOptions[idx]);
+    });
+    clearX.addEventListener('click', () => {
+      input.value = '';
+      wrap.classList.remove('has-value');
+      pick(null);
+      input.focus();
+    });
+    document.addEventListener('click', (e) => {
+      if(!wrap.contains(e.target)) close();
+    });
+
+    function pick(opt){
+      input.value = opt ? opt.label : '';
+      wrap.classList.toggle('has-value', !!opt);
+      close();
+      onSelect(opt ? opt.label : null);
+    }
+
+    return {
+      enable(){ input.disabled = false; input.placeholder = placeholderEnabled; },
+      disable(msg){ input.disabled = true; input.value=''; wrap.classList.remove('has-value'); input.placeholder = msg; },
+      reset(){ input.value=''; wrap.classList.remove('has-value'); }
+    };
+  }
+
+  const stepEls = {
+    company: document.querySelector('.step[data-key="company"]'),
+    product: document.querySelector('.step[data-key="product"]'),
+    occupancy: document.querySelector('.step[data-key="occupancy"]'),
+  };
+
+  const companyCtrl = setupCombo('company', () => {
+    return COMPANIES.map(c => ({label:c, count: Object.keys(DATA[c]||{}).length}));
+  }, (val) => {
+    state.company = val;
+    state.product = null;
+    state.occupancy = null;
+    stepEls.company.dataset.filled = val ? 'true' : 'false';
+    productCtrl.reset();
+    occupancyCtrl.reset();
+    if(val){
+      productCtrl.enable('Start typing a product…');
+      stepEls.product.dataset.disabled = 'false';
+    } else {
+      productCtrl.disable('Select a company first…');
+      stepEls.product.dataset.disabled = 'true';
+    }
+    occupancyCtrl.disable('Select a product first…');
+    stepEls.occupancy.dataset.disabled = 'true';
+    stepEls.product.dataset.filled = 'false';
+    stepEls.occupancy.dataset.filled = 'false';
+    renderResult();
+  }, 'Start typing an insurer name…');
+
+  const productCtrl = setupCombo('product', () => {
+    if(!state.company) return [];
+    const prods = DATA[state.company] || {};
+    return Object.keys(prods).sort().map(p => ({label:p, count: Object.keys(prods[p]).length}));
+  }, (val) => {
+    state.product = val;
+    state.occupancy = null;
+    stepEls.product.dataset.filled = val ? 'true' : 'false';
+    occupancyCtrl.reset();
+    if(val){
+      occupancyCtrl.enable('Start typing an occupancy…');
+      stepEls.occupancy.dataset.disabled = 'false';
+    } else {
+      occupancyCtrl.disable('Select a product first…');
+      stepEls.occupancy.dataset.disabled = 'true';
+    }
+    stepEls.occupancy.dataset.filled = 'false';
+    renderResult();
+  }, 'Start typing a product…');
+
+  const occupancyCtrl = setupCombo('occupancy', () => {
+    if(!state.company || !state.product) return [];
+    const occs = DATA[state.company][state.product];
+    return Object.keys(occs).sort().map(o => ({label:o, count: occs[o].length}));
+  }, (val) => {
+    state.occupancy = val;
+    stepEls.occupancy.dataset.filled = val ? 'true' : 'false';
+    renderResult();
+  }, 'Start typing an occupancy…');
+
+  function fmtPct(v){
+    if(v === null || v === undefined || v === '') return '—';
+    const n = parseFloat(v);
+    if(isNaN(n)) return escapeHtml(String(v));
+    return n.toFixed(1) + '%';
+  }
+
+  function renderResult(){
+    const zone = document.getElementById('result-zone');
+    if(!state.company || !state.product || !state.occupancy){
+      zone.innerHTML = '<div class="result-empty">Make all three selections above to see the matching rate.</div>';
+      return;
+    }
+    const entries = DATA[state.company][state.product][state.occupancy];
+    if(!entries || entries.length === 0){
+      zone.innerHTML = '<div class="result-empty">No rate on file for this exact combination.</div>';
+      return;
+    }
+    const rows = entries.map(e => `
+      <div class="rate-row">
+        <div class="rate-meta">
+          ${e.code ? `<span class="code">Code ${escapeHtml(e.code)}</span><br/>` : ''}
+          ${e.cat ? escapeHtml(e.cat) : 'Fresh / Renewal'}
+          <div class="excl-tag">Excluding Terrorism</div>
+        </div>
+        <div class="rate-figure payable">
+          <div class="label">Payable Net</div>
+          <div class="value">${fmtPct(e.pay)}</div>
+        </div>
+      </div>
+    `).join('');
+
+    zone.innerHTML = `
+      <div class="result">
+        <div class="result-head">
+          <span>${escapeHtml(state.company)}</span>
+          <span>${entries.length} rate${entries.length>1?'s':''} found</span>
+        </div>
+        <div class="result-body">
+          <div style="margin-bottom:14px; font-size:14.5px; color:var(--muted);">
+            <strong style="color:var(--ink);">${escapeHtml(state.product)}</strong> — ${escapeHtml(state.occupancy)}
+          </div>
+          ${rows}
+        </div>
+      </div>
+    `;
+  }
+
+  document.getElementById('stat-line').textContent =
+    COMPANIES.length + ' insurers · ' + Object.values(DATA).reduce((a,p)=>a+Object.keys(p).length,0) + ' product entries';
+
+})();
+</script>
+</body>
+</html>
