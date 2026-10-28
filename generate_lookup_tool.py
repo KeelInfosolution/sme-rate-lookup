@@ -23,17 +23,17 @@ REQUIREMENTS
 WHAT IT DOES
 ------------
 1. Reads the Excel file's "SME Compensation Matrix" sheet.
-2. Expects these columns (in this order — matches the standard template
-   plus the Occupancy Code / Occupancy Name columns added for this tool):
-       A: Grid ID
-       B: Company
-       C: Category
-       D: Product
-       E: Occupancy Code
-       F: Occupancy Name
-       G: Recivable Net
-       H: Payable Net
-       (I onward: Start Date, End Date, Created By, etc. — not used by the tool)
+2. Reads the header row to find the columns it needs, so it works with
+   either of these two layouts:
+       - Grid ID, Company, Category, Product, Occupancy Code, Occupancy Name,
+         Recivable Net, Payable Net, ...   (older layout, two occupancy columns)
+       - Grid ID, Company, Category, Product, Occupancy, Recivable Net,
+         Payable Net, ...                   (current layout, single Occupancy
+         column — this is what the live production export uses. A value like
+         "Sum Insured - Below 150 Crs" in this column is treated as an
+         Occupancy Name and surfaced through the same 3rd dropdown as any
+         other occupancy value, so CAR/EAR Sum Insured tiers need no change
+         to the page's search logic.)
 3. Builds a nested lookup structure: Company -> Product -> Occupancy Name -> [rate rows]
 4. Injects that structure as JSON into index_template.html (which must be
    in the same folder as this script) to produce a new, fully self-contained
@@ -62,6 +62,45 @@ TEMPLATE_FILENAME = "index_template.html"
 PLACEHOLDER = "__DATA_JSON__"
 
 
+def _find_columns(header_row):
+    """Map header labels (case-insensitive) to their 0-based column index.
+    Supports both the older 'Occupancy Code' + 'Occupancy Name' layout and
+    the current single 'Occupancy' column layout."""
+    idx = {}
+    for i, h in enumerate(header_row):
+        if h is None:
+            continue
+        key = str(h).strip().lower()
+        idx[key] = i
+
+    required = ["grid id", "company", "category", "product", "recivable net", "payable net"]
+    missing = [r for r in required if r not in idx]
+    if missing:
+        sys.exit(f"Could not find required column(s) in the header row: {missing}")
+
+    has_split_occupancy = "occupancy code" in idx and "occupancy name" in idx
+    has_single_occupancy = "occupancy" in idx
+
+    if not has_split_occupancy and not has_single_occupancy:
+        sys.exit(
+            "Could not find an occupancy column. Expected either "
+            "'Occupancy Code' + 'Occupancy Name', or a single 'Occupancy' column."
+        )
+
+    return {
+        "grid_id": idx["grid id"],
+        "company": idx["company"],
+        "category": idx["category"],
+        "product": idx["product"],
+        "occ_code": idx.get("occupancy code"),
+        "occ_name": idx.get("occupancy name"),
+        "occupancy": idx.get("occupancy"),
+        "recv": idx["recivable net"],
+        "pay": idx["payable net"],
+        "split_occupancy": has_split_occupancy,
+    }
+
+
 def build_lookup_json(xlsx_path: Path) -> str:
     wb = openpyxl.load_workbook(xlsx_path, data_only=True)
     if SHEET_NAME not in wb.sheetnames:
@@ -71,17 +110,29 @@ def build_lookup_json(xlsx_path: Path) -> str:
         )
     ws = wb[SHEET_NAME]
 
+    header_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+    cols = _find_columns(header_row)
+
     data = {}
     companies_set = set()
     row_count = 0
 
     for row in ws.iter_rows(min_row=2, max_row=ws.max_row, values_only=True):
-        if len(row) < 8:
-            continue
-        _, company, category, product, occ_code, occ_name, recv, pay = row[:8]
-
+        company = row[cols["company"]]
+        product = row[cols["product"]]
         if not company or not product:
             continue
+
+        category = row[cols["category"]]
+        recv = row[cols["recv"]]
+        pay = row[cols["pay"]]
+
+        if cols["split_occupancy"]:
+            occ_code = row[cols["occ_code"]]
+            occ_name = row[cols["occ_name"]]
+        else:
+            occ_code = ""
+            occ_name = row[cols["occupancy"]]
 
         companies_set.add(company)
         occ_key = occ_name if occ_name else "(No Occupancy Classification / Standard Rate)"
